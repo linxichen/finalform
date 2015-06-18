@@ -111,9 +111,9 @@ pphi_Cz = 0.0;
 pphi_Cssigmax = 0.0;
 pphi_C = [pphi_CC,pphi_CK,pphi_Cz,pphi_Cssigmax];
 
-% if (exist('aggrules.mat','file') == 2)
-%     load aggrules.mat;
-% end
+if (exist('aggrules.mat','file') == 2)
+    load aggrules.mat;
+end
 
 %% Initialize value functions
 W_old = ones(nk,ns,nK,nq); % value of matching with investment goods producer after paying the search cost
@@ -122,25 +122,25 @@ U_old = ones(nk,ns,nK); % value of not going to search, not related to current q
 U_new = U_old;
 V_old = ones(nk,ns,nK,nq); % maximized value after discrete choice
 V_new = ones(nk,ns,nK,nq); %
-% if (exist('valuefunctions.mat','file') == 2)
-%     load valuefunctions.mat
-% else
-%     W_old = ones(nk,ns,nK,nq); % value of matching with investment goods producer after paying the search cost
-%     W_new = W_old;
-%     U_old = ones(nk,ns,nK); % value of not going to search, not related to current q
-%     U_new = U_old;
-%     V_old = ones(nk,ns,nK,nq); % maximized value after discrete choice
-%     V_new = ones(nk,ns,nK,nq); %
-% end
-% if isequal(size(W_old),[nk,ns,nK,nq])
-% else
-%     W_old = ones(nk,ns,nK,nq); % value of matching with investment goods producer after paying the search cost
-%     W_new = W_old;
-%     U_old = ones(nk,ns,nK); % value of not going to search, not related to current q
-%     U_new = U_old;
-%     V_old = ones(nk,ns,nK,nq); % maximized value after discrete choice
-%     V_new = ones(nk,ns,nK,nq); %
-% end
+if (exist('valuefunctions.mat','file') == 2)
+    load valuefunctions.mat
+else
+    W_old = ones(nk,ns,nK,nq); % value of matching with investment goods producer after paying the search cost
+    W_new = W_old;
+    U_old = ones(nk,ns,nK); % value of not going to search, not related to current q
+    U_new = U_old;
+    V_old = ones(nk,ns,nK,nq); % maximized value after discrete choice
+    V_new = ones(nk,ns,nK,nq); %
+end
+if isequal(size(W_old),[nk,ns,nK,nq])
+else
+    W_old = ones(nk,ns,nK,nq); % value of matching with investment goods producer after paying the search cost
+    W_new = W_old;
+    U_old = ones(nk,ns,nK); % value of not going to search, not related to current q
+    U_new = U_old;
+    V_old = ones(nk,ns,nK,nq); % maximized value after discrete choice
+    V_new = ones(nk,ns,nK,nq); %
+end
 
 % profit_fine = zeros(nfine,ns,nq);
 V_new_fine = zeros(nfine,ns,nK,nq);
@@ -189,7 +189,6 @@ tic
 %% Main Body of KS iter
 outer_diff = 10;
 outer_iter = 0;
-load 'valuefunctions.mat'
 
 while ((outer_diff > outer_tol) && (outer_iter < maxiter))
     %============ VFI Begins==============================================%
@@ -252,7 +251,6 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
             disp(disp_text);
         end
     end
-    save('valuefunction.mat','V_old','W_old','U_old');
     %============ VFI Ends================================================%
     
     active = W_new > repmat(U_new,1,1,1,nq);
