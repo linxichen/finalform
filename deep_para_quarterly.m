@@ -21,3 +21,6 @@ ppsi_n = 1;
 xi_n = ppsi_n;
 C_ss = 1;
 
+% Matching
+aalpha0 = 0.95;aalpha1 = 0.01; % let mmu always close to 1
+

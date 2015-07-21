@@ -9,28 +9,23 @@
 % 2. wage = psi_n*c the wage supply equation
 % 3. General eqm, CARA
 % 4. Uses steady state calibration file
-
-% 05/28/2015: add tightness ratio and matching probability
-% ttheta = 1/(measure of firms who do investment)
-% mmu = aalpha0*ttheta^aalpha1;
-% I let ttheta to depend on price q. This will be reflected in optimization of q
-% In KS:
-% ttheta = pphi_theta*log_aggstate+pphi_thetaq*q
-
+% 6/29 quadratic adjustment cost
+%      k = (1-delta)k+I-eta*(k*(I/K)^2) (Bloom 2009, p13)
 %% Housekeeping
 clear; close all; clc;
 deep_para_quarterly;
-MC = 0; % let it be small, so that C is always positive
+diary('log.txt')
 
 %% Accuracy control
-nk = 50; % number of grid points on capital stock
-nfine = 50; % number of grid points for policy functions and simulation
+nk = 120; % number of grid points on capital stock
+nfine = 120; % number of grid points for policy functions and simulation
 nx = 7; % number of grid points on idiosyncractic prod.
-nz = 5; % number of grid points on aggregate productivity
+nz = 7; % number of grid points on aggregate productivity
 ns = nx*nz*2; % total dimension of exo state, (idio, agg, ssigmax)
 nK = 15; % agg capital state
-nq = 15; % number of price points inv producer can set
-m = 3; % support is m s.d. away from mean
+nq = 25; % number of price points inv producer can set
+nmarkup = 25;
+m = 2.5; % support is m s.d. away from mean
 tol = 1e-3; % when to stop VFI and KS
 outer_tol = 1e-3;
 maxiter = 100;
@@ -65,9 +60,10 @@ end
 % The tail index has to be larger than 1/(1-aalpha) = 1.4286, this implies
 % q = 1.05.
 %=========================================================================%
-qmin = 0.00001;
-qmax = 1.1;
-q_grid = linspace(qmin,qmax,nq); 
+markupmin = 1.05;
+markupmax = 1.2;
+markup_grid = linspace(markupmin,markupmax,nmarkup); 
+q_grid = linspace(1.0,1.8,nq);
 % Capital grid
 min_k = 1;
 max_k = 10;
@@ -114,7 +110,7 @@ pphi_Kz = 0;
 pphi_Kssigmax = 0;% Aggregate Law of motion for aggregate capital
 pphi_K = [pphi_KC,pphi_KK,pphi_Kssigmax,pphi_Kz];
 
-pphi_CC = log(0.3); % consumption
+pphi_CC = log(1.3);
 pphi_CK = 0.0;
 pphi_Cz = 0.0;
 pphi_Cssigmax = 0.0;
@@ -168,11 +164,11 @@ kopt_active_fine = zeros(nfine,ns,nK,nq);
 active = zeros(nk,ns,nK,nq);
 
 % Prepare for Simulation stuff
-T = 1000; % How long to simulate
+T = 3000; % How long to simulate
 burnin = ceil(0.1*T); % how many periods to discard to get rid of dependence on initial state
 kss = mean(k_grid);
 Ksim = kss*ones(1,T);
-qsim = mean(q_grid)*ones(1,T);
+qsim = mean(markup_grid)*ones(1,T);
 revenue = zeros(nq,1); % revenue of inv producer
 demand = zeros(nq,T);
 mmusim = zeros(1,T); % finding rate under optimal q
@@ -219,12 +215,11 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
                 % What is agg state today
                 log_aggstate = [1; log(K_grid(i_K)); log(ssigmax(i_ssigmax)); log(Z(i_z))];
                 % Forecast future values
+                C = exp(pphi_C*log_aggstate);
+                w = ppsi_n*C;
                 [~,i_Kplus] = min(abs(K_grid-exp(pphi_K*log_aggstate)));
                 [~,i_qplus] = min(abs(q_grid-exp(pphi_q*log_aggstate)));
-                C = exp(pphi_C*log_aggstate);
-              
-                %===============Take as given wage,find profit============%
-                w = ppsi_n*C;
+                %=========Take as given wage,find profit in c units=======%
                 L = (w*k_grid.^(-aalpha)/Z(i_z)/X(i_x)/v).^(1/(v-1));
                 profit = Z(i_z)*X(i_x)*k_grid.^aalpha.*L.^v - w.*L;
                 L = repmat(L,1,nk);
@@ -244,12 +239,13 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
                 % Not optimally! We need to find maximizing kplus
                 %=========================================================%
                 for i_q = 1:nq
+					eeta = 0.5;
+					convexadj = eeta*repmat(k_grid,1,nk).*(inv_mat./repmat(k_grid,1,nk)).^2;
                     ttheta = exp(pphi_ttheta*log_aggstate+pphi_tthetaq*log(q_grid(i_q))); % tightness for this q
                    % mmu = 1./(1+tttheta_old.^(-aalpha0)).^(1/aalpha0);
-                    aalpha0 = 0.99;aalpha1 = .0; % let mmu always close to 1
                     mmu = aalpha0*ttheta^aalpha1;
                     % mmu = 1./((1+ttheta.^(aalpha0)).^(1/aalpha0));
-                    netprofit = repmat(profit,1,nk)-mmu*q_grid(i_q)*(inv_mat).*(pos_inv+neg_inv*pphi);
+                    netprofit = repmat(profit,1,nk)-mmu*q_grid(i_q)*(inv_mat).*(pos_inv+neg_inv*pphi)-mmu*convexadj;
                     candidate = llambda*netprofit  + bbeta*(mmu*repmat(EV_invest',nk,1)+(1-mmu)*repmat(EV_noinvest,1,nk));
                     %=====================================================%
                     % candidate(i_k,i_kplus) is the thing inside max
@@ -275,25 +271,29 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
             disp(disp_text);
         end
     end
+    save('valuefunction.mat','V_old','W_old','U_old');
     %============ VFI Ends================================================%
     
     active = W_new > repmat(U_new,1,1,1,nq);
     koptind = repmat(noinvest_ind,1,ns,nK,nq).*(1-active) + active.*koptind_active;
     kopt_active = k_grid(koptind_active);
     kopt = k_grid(koptind);
-    plot(k_grid,kopt(:,sub2ind([nx nz 2],ceil(nx/2),ceil(nz/2),2),ceil(nK/2),5)-(1-ddelta)*k_grid)
+    plot(k_grid,kopt(:,sub2ind([nx nz 2],ceil(nx/2),ceil(nz/2),2),ceil(nK/2),20)-(1-ddelta)*k_grid)
     save('valuefunctions.mat','V_new','W_new','U_new','V_old','W_old','U_old')
     
-    % Interpolate on finer grid
-    for i_q = 1:nq
-        for i_K = 1:nK
-            for i_s = 1:ns
-                U_new_fine(:,i_s,i_K) = interp1(k_grid,U_new(:,i_s,i_K),fine_grid,'linear')';
-                W_new_fine(:,i_s,i_K,i_q) = interp1(k_grid,W_new(:,i_s,i_K,i_q),fine_grid,'linear')';
-                kopt_active_fine(:,i_s,i_K,i_q) = interp1(k_grid,kopt_active(:,i_s,i_K,i_q),fine_grid,'linear')';
-            end
-        end
-    end    
+%     % Interpolate on finer grid
+%     for i_q = 1:nq
+%         for i_K = 1:nK
+%             for i_s = 1:ns
+%                 U_new_fine(:,i_s,i_K) = interp1(k_grid,U_new(:,i_s,i_K),fine_grid,'linear')';
+%                 W_new_fine(:,i_s,i_K,i_q) = interp1(k_grid,W_new(:,i_s,i_K,i_q),fine_grid,'linear')';
+%                 kopt_active_fine(:,i_s,i_K,i_q) = interp1(k_grid,kopt_active(:,i_s,i_K,i_q),fine_grid,'linear')';
+%             end
+%         end
+%     end    
+    U_new_fine = U_new;
+    W_new_fine = W_new;
+    kopt_active_fine = kopt_active;
     active_fine = W_new_fine > repmat(U_new_fine,1,1,1,nq);
     kopt_fine = (1-ddelta)*repmat(fine_grid,1,ns,nK,nq).*(1-active_fine) + active_fine.*kopt_active_fine;
     plot(fine_grid,kopt_fine(:,sub2ind([nx nz 2],ceil(nx/2),ceil(nz/2),2),ceil(nK/2),1)-(1-ddelta)*fine_grid)
@@ -326,48 +326,50 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
         w = ppsi_n*C;
        
         % According to policy functions, find the optimal q
-        % notice that investment goods producer understand that q can
-        % affect ttheta
-        for i_q = 1:nq
-            ttheta_temp = exp(pphi_ttheta*log_aggstate+pphi_tthetaq*q_grid(i_q));% tightness ratio given q and states
-            % mmu_temp = 1./((1+ttheta_temp.^(aalpha0)).^(1/aalpha0));% matching rate for final goods producers
-            mmu_temp = aalpha0*ttheta_temp^aalpha1;
-            tot_profit_grid = mmu_temp*(q_grid(i_q)-w)*dist_k(:,:,t).*(kopt_active_fine(:,whichs,i_K,i_q)-(1-ddelta)*repmat(fine_grid,1,nx)).*(active_fine(:,whichs,i_K,i_q));
+        for i_markup = 1:nmarkup
+            [~,i_q] = min(abs(q_grid-markup_grid(i_markup)*w));
+			ttheta_temp = exp(pphi_ttheta*log_aggstate+pphi_tthetaq*log(q_grid(i_q)));% tightness ratio given q and states
+			mmu_temp = aalpha0*ttheta_temp^aalpha1;
+            tot_profit_grid = mmu_temp*(markup_grid(i_markup)*w-w)*dist_k(:,:,t).*(kopt_active_fine(:,whichs,i_K,i_q)-(1-ddelta)*repmat(fine_grid,1,nx)).*(active_fine(:,whichs,i_K,i_q));
             demand_grid = mmu_temp*dist_k(:,:,t).*(kopt_active_fine(:,whichs,i_K,i_q)-(1-ddelta)*repmat(fine_grid,1,nx)).*(active_fine(:,whichs,i_K,i_q));
-            revenue(i_q,t) = sum(tot_profit_grid(:));
-            demand(i_q,t) = sum(demand_grid(:));
+            revenue(i_markup,t) = sum(tot_profit_grid(:));
+            demand(i_markup,t) = sum(demand_grid(:));
         end
-        [~,i_qmax] = max(revenue(:,t));
-        qsim(t) = q_grid(i_qmax);
+        [~,i_markupmax] = max(revenue(:,t));
+        qmax = w*markup_grid(i_markupmax);
+        [~,i_qmax] = min(abs(q_grid-qmax));
+        qsim(t) = qmax;
         
         % Evolution under the argmax q
         if (t<=T-1)
             output = 0;
-            ttheta_temp = exp(pphi_ttheta*log_aggstate+pphi_tthetaq*q_grid(i_qmax));% tightness ratio given q and states
+            ttheta_temp = exp(pphi_ttheta*log_aggstate+pphi_tthetaq*log(q_grid(i_qmax)));% tightness ratio given q and states
             mmu_temp = aalpha0*ttheta_temp^aalpha1;
-            % mmu_temp = 1./((1+ttheta_temp.^(aalpha0)).^(1/aalpha0));% matching rate for final goods producers
+            if mmu_temp > 1
+                warning('mmu > 1 encountered.');
+            end
+            i_z =find(Z==zsim(t));
             for i_k = 1:nfine
                 for i_x = 1:nx
                     %======GE: Find output on each state==================%
                     L = (w*fine_grid(i_k).^(-aalpha)/zsim(t)/X(i_x)/v).^(1/(v-1));
-                    output = output + dist_k(i_k,i_x,t)*(Z(i_z)*X(i_x)*fine_grid(i_k).^aalpha.*L.^v);
+                    output = output + dist_k(i_k,i_x,t)*(Z(i_z)*X(i_x)*fine_grid(i_k).^aalpha.*L.^v); % previously i_z is not correctly created from zsim(t). It stucked at VFI stage!!!
                     %======GE: Find output on each state==================%
 
-                    ind_z =find(Z==zsim(t));
-                    i_s = sub2ind([nx nz 2],i_x,ind_z,ssigmaxsim(t));
+                    i_s = sub2ind([nx nz 2],i_x,i_z,ssigmaxsim(t));
                     kplus = kopt_fine(i_k,i_s,i_K,i_qmax);
                     
                     % Assign mass to tomorrow's distribution
                     for i_xplus = 1:nx
                         if active_fine(i_k,i_x) == 1
-                            if (kplus>fine_grid(1) && kplus<fine_grid(nfine))
+                            if (kplus>=fine_grid(1) && kplus<fine_grid(nfine))
                                 lower_ind = find(fine_grid<=kplus,1,'last');
                                 upper_ind = lower_ind + 1;
-                                denom = fine_grid(upper_ind)-fine_grid(lower_ind);
-                                dist_k(lower_ind,i_xplus,t+1) = dist_k(lower_ind,i_xplus,t+1) + mmu_temp*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t)*(kplus-fine_grid(lower_ind))/denom;
-                                dist_k(upper_ind,i_xplus,t+1) = dist_k(upper_ind,i_xplus,t+1) + mmu_temp*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t)*(fine_grid(upper_ind)-kplus)/denom;
+                                denom = fine_grid(upper_ind)-fine_grid(lower_ind); 
+                                dist_k(lower_ind,i_xplus,t+1) = dist_k(lower_ind,i_xplus,t+1) + mmu_temp*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t)*(fine_grid(upper_ind)-kplus)/denom;
+                                dist_k(upper_ind,i_xplus,t+1) = dist_k(upper_ind,i_xplus,t+1) + mmu_temp*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t)*(kplus-fine_grid(lower_ind))/denom;
                                 dist_k(noinvest_ind_fine(i_k),i_xplus,t+1) = dist_k(noinvest_ind_fine(i_k),i_xplus,t+1)+(1-mmu_temp)*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t);
-                            elseif (kplus<=fine_grid(1))
+                            elseif (kplus<fine_grid(1))
                                 dist_k(1,i_xplus,t+1) = dist_k(1,i_xplus,t+1) + mmu_temp*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t);
                                 dist_k(noinvest_ind_fine(i_k),i_xplus,t+1) = dist_k(noinvest_ind_fine(i_k),i_xplus,t+1)+(1-mmu_temp)*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t);
                             elseif (kplus>=fine_grid(nfine))
@@ -380,17 +382,29 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
                     end  
                 end
             end
+            
+            % Check if distribution makes sense
+            if min(vec(dist_k(:,:,t+1))) < 0
+                warning('somewhere theres negative mass')
+            end
+            if sum(vec(dist_k(:,:,t+1))) ~= 1
+                sprintf('Mass sums up to %d',sum(vec(dist_k(:,:,t+1))));
+            end
         end
+        
+
             
         % Eventually find implied consumption
-        Csim(t) = output - MC*demand(i_qmax,t);
+        Csim(t) = output;
         % also find implied tightness ratio
         measure_active = sum(sum(dist_k(:,:,t).*active_fine(:,whichs,i_K,i_qmax)));% how many firms choose to search
-        tthetasim(t) = 1/measure_active;
+        if measure_active == 0
+            tthetasim(t) = 999999;
+        else
+            tthetasim(t) = 1/measure_active;
+        end
+        
     end
-    
-    % update kss
-    % kss = mean(Ksim(burnin+1:T));
     
     %% Regress to get coefficients of K law
     XX = [ones(T-burnin-1,1) log(Ksim(burnin+1:T-1))' log(ssigmax(ssigmaxsim(burnin+1:T-1)))' log(zsim(burnin+1:T-1))'];
@@ -437,7 +451,6 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
     pphi_ttheta = pphi_ttheta_new;
     pphi_tthetaq = pphi_tthetaq_new;
     
-   
     %% Plot something
 %     i_x = 4;
 %     i_K = 3;
@@ -523,3 +536,51 @@ mesh(X,fine_grid,tot_profit_grid(:,:,1))
 save main.mat
 
 % checkresults;
+
+%% Understand results
+period = T-2;
+
+figure_dist = figure;
+surf(X,fine_grid,real(dist_k(:,:,end-1)))
+savefig(figure_dist,'distribution.fig');
+
+figure_activemeasure = figure;
+whichs = zeros(1,nx);
+        for i_x = 1:nx
+            whichs(i_x) = sub2ind([nz nx 2],zindsim(period),i_x,ssigmaxsim(period));
+        end
+surf(X,fine_grid,real(dist_k(:,:,end).*(active_fine(:,whichs,i_K,i_q))))
+savefig(figure_activemeasure,'active_measure.fig');
+
+figure_ksim = figure;
+plot(1:T,Ksim,1:T,qsim);
+xlabel('Time');
+ylabel('Aggregate Capital');
+savefig(figure_ksim,'Ksim.fig');
+legend('Capital','Inv Good Price');
+
+figure_csim = figure;
+plot(1:T,Csim,1:T,ssigmaxsim)
+xlabel('Time');
+legend('Consumption','Uncertainty');
+savefig(figure_csim,'csim.fig');
+
+figure_tthetasim = figure;
+plot(1:T,qsim,1:T,tthetasim)
+xlabel('Time');
+legend('Inv Price','Tightness');
+savefig(figure_tthetasim,'tthetasim.fig');
+
+figure_invsim = figure;
+plot(2:T,Ksim(2:T)-(1-ddelta)*Ksim(1:T-1),2:T,qsim(2:T))
+xlabel('Time');
+legend('Inv Quantity','Tightness');
+savefig(figure_tthetasim,'tthetasim.fig');
+
+mmusim = aalpha0*real(tthetasim).^(aalpha1);
+activesim = 1./tthetasim;
+
+invsim = real(Ksim(2:T)-(1-ddelta)*Ksim(1:T-1));
+inv_mean = real(mean(invsim));
+[~,inv_cyc] = hpfilter(invsim./inv_mean-1,1600);
+std(inv_cyc)
