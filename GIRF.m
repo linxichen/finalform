@@ -44,24 +44,26 @@ controls_unc_low    = cell(n_worlds,1);
 states_unc_high     = cell(n_worlds,1);
 states_unc_low      = cell(n_worlds,1);
 parfor i_world = 1:n_worlds
-	[states_unc_high{i_world},controls_unc_high{i_world}] = simulation(irfperiod+1,startpoints{i_world},innov{i_world},'unc_high',kopt_fine,active_fine,package);
-	[states_unc_low{i_world} ,controls_unc_low{i_world} ] = simulation(irfperiod+1,startpoints{i_world},innov{i_world},'unc_low',kopt_fine,active_fine,package);
+	[states_unc_high{i_world},controls_unc_high{i_world}] = simulation(irfperiod,startpoints{i_world},innov{i_world},'unc_high',kopt_fine,active_fine,package);
+	[states_unc_low{i_world} ,controls_unc_low{i_world} ] = simulation(irfperiod,startpoints{i_world},innov{i_world},'unc_low',kopt_fine,active_fine,package);
 	i_world
 end
 save GIRF.mat
 
 %% Plotting for uncertainty shock
-q_panel_unc_high = zeros(n_worlds,irfperiod);
-q_panel_unc_low  = zeros(n_worlds,irfperiod);
-C_panel_unc_high = zeros(n_worlds,irfperiod);
-C_panel_unc_low  = zeros(n_worlds,irfperiod);
-w_panel_unc_high = zeros(n_worlds,irfperiod);
-w_panel_unc_low  = zeros(n_worlds,irfperiod);
-ttheta_panel_unc_high = zeros(n_worlds,irfperiod);
-ttheta_panel_unc_low  = zeros(n_worlds,irfperiod);
-inv_panel_unc_high = zeros(n_worlds,irfperiod);
-inv_panel_unc_low  = zeros(n_worlds,irfperiod);
-parfor i_world = 1:n_worlds
+q_panel_unc_high      = zeros(n_worlds,irfperiod);                                                                           
+q_panel_unc_low       = zeros(n_worlds,irfperiod);                                                                           
+C_panel_unc_high      = zeros(n_worlds,irfperiod);                                                                           
+C_panel_unc_low       = zeros(n_worlds,irfperiod);                                                                           
+w_panel_unc_high      = zeros(n_worlds,irfperiod);                                                                           
+w_panel_unc_low       = zeros(n_worlds,irfperiod);                                                                           
+ttheta_panel_unc_high = zeros(n_worlds,irfperiod);                                                                                
+ttheta_panel_unc_low  = zeros(n_worlds,irfperiod);                                                                                
+inv_panel_unc_high    = zeros(n_worlds,irfperiod);                                                                             
+inv_panel_unc_low     = zeros(n_worlds,irfperiod);                                                                             
+GDP_panel_unc_high    = zeros(n_worlds,irfperiod);                                                                             
+GDP_panel_unc_low     = zeros(n_worlds,irfperiod);                                                                             
+for i_world = 1:n_worlds
 	q_panel_unc_high(i_world,:) = controls_unc_high{i_world}.q;
 	q_panel_unc_low(i_world,:)  = controls_unc_low{i_world}.q ;
 	C_panel_unc_high(i_world,:) = controls_unc_high{i_world}.C;
@@ -90,8 +92,8 @@ plot(1:irfperiod,mean(ttheta_panel_unc_high)-mean(ttheta_panel_unc_low));
 title('Tightness')
 subplot(3,2,5);
 plot(1:irfperiod,mean(inv_panel_unc_high)-mean(inv_panel_unc_low));
-title('Tightness')
+title('Investment')
 subplot(3,2,6);
-plot(1:irfperiod,mean(inv_panel_unc_high)-mean(inv_panel_unc_low));
-title('Tightness')
+plot(1:irfperiod,mean(GDP_panel_unc_high)-mean(GDP_panel_unc_low));
+title('GDP')
 print(h1,'GIRF_unc.eps','-depsc2')
