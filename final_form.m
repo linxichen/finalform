@@ -48,8 +48,6 @@ PX_low = tauchen_givengrid(0,rrhox,ssigmax_low,X); X = exp(X);
 P = zeros(nx*nz*2,nx*nz*2);  % The transition of exo state vec, all independent
 low = 1;
 high = 2;
-uncond_X_low = PX_low^30000;
-uncond_X_high = PX_high^30000;
 % Below find the transition prob of three indie variable
 for i = 1:ns
     [i_x,i_z,i_ssigmax] = ind2sub([nx nz 2],i);
@@ -312,7 +310,7 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
 		% prod. level. He uses this to forecast expected value function
 		whichs = zeros(1,nx);
 		for i_x = 1:nx
-			whichs(i_x) = sub2ind([nz nx 2],zindsim(t),i_x,ssigmaxsim(t));
+			whichs(i_x) = sub2ind([nx nz 2],i_x,zindsim(t),ssigmaxsim(t));
 		end
 
 		% Find transition matrix according to today's state
