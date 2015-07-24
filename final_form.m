@@ -201,7 +201,7 @@ startpoints.K = mean(K_grid);
 startpoints.ssigmaxind = low;
 startpoints.zind = ceil(nz/2);
 startpoints.dist_k = zeros(nfine,nx);
-startpoints.dist_k(ceil(nfine/2),:) = ones(1,nx);
+startpoints.dist_k(ceil(nfine/2),:) = ones(1,nx)/nx;
 
 tic
 %% Main Body of KS iter
@@ -282,7 +282,7 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
 	koptind = repmat(noinvest_ind,1,ns,nK,nq).*(1-active) + active.*koptind_active;
 	kopt_active = k_grid(koptind_active);
 	kopt = k_grid(koptind);
-	plot(k_grid,kopt(:,sub2ind([nx nz 2],ceil(nx/2),ceil(nz/2),2),ceil(nK/2),20)-(1-ddelta)*k_grid)
+	plot(k_grid,kopt(:,sub2ind([nx nz 2],ceil(nx/2),ceil(nz/2),2),ceil(nK/2),ceil(nq/2))-(1-ddelta)*k_grid)
 	save('valuefunctions.mat','V_new','W_new','U_new','V_old','W_old','U_old')
 
 	%     % Interpolate on finer grid
