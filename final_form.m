@@ -24,15 +24,15 @@ diary('log.txt');
 
 %% Accuracy control
 nk = 100; % number of grid points on capital stock
-nfine = 100; % number of grid points for policy functions and simulation
+nfine = nk; % number of grid points for policy functions and simulation
 nx = 7; % number of grid points on idiosyncractic prod.
 nz = 7; % number of grid points on aggregate productivity
-ns = nx*nz*2; % total dimension of exo state, (idio, agg, ssigmax)
+ns = nx*nz*2; % total dimension of exo state, (idio, agg, ssigmax_grid)
 nK = 15; % agg capital state
 nq = 15; % number of price points inv producer can set
 nmarkup = 15;
 m = 2.5; % support is m s.d. away from mean
-tol = 1e-3; % when to stop VFI and KS
+tol = 1e-2; % when to stop VFI and KS
 outer_tol = 1e-3;
 maxiter = 100;
 damp = 0.5; % help with outer convergence
@@ -40,14 +40,15 @@ T = 3000; % How long to simulate
 burnin = ceil(0.1*T); % how many periods to discard to get rid of dependence on initial state
 
 %% Grids and stuff derived immediately from parameters
-[Z,PZ] = tauchen(nz,0,rrhoz,ssigmaz,m); Z = exp(Z); % agg TFP
-ssigmax = [ssigmax_low,ssigmax_high];
+[z_grid,PZ] = tauchen(nz,0,rrhoz,ssigmaz,m); z_grid = exp(z_grid); % agg TFP
+ssigmax_grid = [ssigmax_low,ssigmax_high];
 [X,PX_high] = tauchen(nx,0,rrhox,ssigmax_high,m);
 %=========================================================================%
 % This PX_high(i,j) gives the approximate prob of P(X_t+1(j) | X_t = X(i))
 % Follows X_t+1 = rrhox*X(i) + ssigma_high* N(0,1)
 %=========================================================================%
-PX_low = tauchen_givengrid(0,rrhox,ssigmax_low,X); X = exp(X);
+PX_low = tauchen_givengrid(0,rrhox,ssigmax_low,X);
+X = exp(X);
 P = zeros(nx*nz*2,nx*nz*2);  % The transition of exo state vec, all independent
 low = 1;
 high = 2;
@@ -63,7 +64,7 @@ ssigmax_cdf = cumsum(Pssigmax,2);
 z_cdf = cumsum(PZ,2);
 
 %=========================================================================%
-% inv price grid. Since MC is 1, the price must be larger than 1
+% inv price grid. Since MC is w, the price must be larger than w
 % From the two period model, q = (xxi - bbeta*(1-ddelta))/(xxi - 1),
 % The tail index has to be larger than 1/(1-aalpha) = 1.4286, this implies
 % q = 1.05.
@@ -110,19 +111,19 @@ pphi_qz = 0; % w.r.t agg TFP
 pphi_qssigmax = 0; % w.r.t uncertainty
 pphi_q = [pphi_qC,pphi_qK,pphi_qssigmax,pphi_qz];
 
-pphi_KK = 9.870171e-01;
+pphi_KK = 0.99;
 pphi_KC = log(mean(k_grid));
 pphi_Kz = 0;
 pphi_Kssigmax = 0;% Aggregate Law of motion for aggregate capital
 pphi_K = [pphi_KC,pphi_KK,pphi_Kssigmax,pphi_Kz];
 
-pphi_CC = log(1.3);
+pphi_CC = log(mean(q_grid)/mean(markup_grid)/ppsi_n);
 pphi_CK = 0.0;
 pphi_Cz = 0.0;
 pphi_Cssigmax = 0.0;
 pphi_C = [pphi_CC,pphi_CK,pphi_Cz,pphi_Cssigmax];
 
-pphi_tthetaC = log(1); % tightness ratio depends on q
+pphi_tthetaC = log(0.95); % tightness ratio depends on q
 pphi_tthetaK = 0.0;
 pphi_tthetaz = 0.0;
 pphi_tthetassigmax = 0.0;
@@ -173,9 +174,9 @@ active = zeros(nk,ns,nK,nq);
 package.K_grid = K_grid;
 package.fine_grid = fine_grid;
 package.noinvest_ind_fine = noinvest_ind_fine;
-package.ssigmax_grid = ssigmax ; % careful here name difference
+package.ssigmax_grid = ssigmax_grid ; % careful here name difference
 package.markup_grid = markup_grid;
-package.z_grid = Z ;
+package.z_grid = z_grid ;
 package.q_grid = q_grid ;
 package.pphi_c = pphi_C ;
 package.pphi_K = pphi_K ;
@@ -218,15 +219,15 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
 			[i_z,i_x,i_ssigmax] = ind2sub([nz nx 2],i_s);
 			for i_K = 1:nK
 				% What is agg state today
-				log_aggstate = [1; log(K_grid(i_K)); log(ssigmax(i_ssigmax)); log(Z(i_z))];
+				log_aggstate = [1; log(K_grid(i_K)); log(ssigmax_grid(i_ssigmax)); log(z_grid(i_z))];
 				% Forecast future values
 				C = exp(pphi_C*log_aggstate);
 				w = ppsi_n*C;
 				[~,i_Kplus] = min(abs(K_grid-exp(pphi_K*log_aggstate)));
 				[~,i_qplus] = min(abs(q_grid-exp(pphi_q*log_aggstate)));
 				%=========Take as given wage,find profit in c units=======%
-				L = (w*k_grid.^(-aalpha)/Z(i_z)/X(i_x)/v).^(1/(v-1));
-				profit = Z(i_z)*X(i_x)*k_grid.^aalpha.*L.^v - w.*L;
+				L = (w*k_grid.^(-aalpha)/z_grid(i_z)/X(i_x)/v).^(1/(v-1));
+				profit = z_grid(i_z)*X(i_x)*k_grid.^aalpha.*L.^v - w.*L;
 				L = repmat(L,1,nk);
 				%=========================================================$
 
@@ -388,51 +389,8 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
 	disp('===============================');
 	save('aggrules.mat','pphi_K','pphi_q','pphi_C','pphi_ttheta');
 	save('Rsq.mat','Rsq_K','Rsq_q','Rsq_C','Rsq_ttheta');
-
 end
-
-
 toc
-
-
-
-%% Decompose Demand Curve
-% According to policy functions, find the optimal q
-% Fix the distribution of firms the last period T
-% t = T;
-% [~,i_K] = min(abs((Ksim(t)-K_grid)));
-% revenue_lowtfp = zeros(1,nq);
-% demand_lowtfp = revenue_lowtfp;
-% whichs = zeros(1,nx);
-% for i_x = 1:nx
-%     whichs(i_x) = sub2ind([nz nx 2],1,i_x,ssigmaxsim(t));
-% end
-% for i_q = 1:nq
-%     tot_profit_grid(:,:,i_q) = (q_grid(i_q)-psi)*dist_k(:,:,t).*((0.02+ddelta)*repmat(fine_grid,1,nx)).*(active_fine(:,whichs,i_K,i_q));
-%     % tot_revenue_grid(tot_revenue_grid<0) = 0;
-%     demand_grid = dist_k(:,:,t).*((0.02+ddelta)*repmat(fine_grid,1,nx)).*(active_fine(:,whichs,i_K,i_q));
-%     revenue_lowtfp(i_q) = sum(vec(tot_profit_grid(:,:,i_q)));
-%     demand_lowtfp(i_q) = sum(demand_grid(:));
-% end
-% figure
-% mesh(X,fine_grid,tot_profit_grid(:,:,1))
-%
-% t = T;
-% [~,i_K] = min(abs((Ksim(t)-K_grid)));
-% revenue_hightfp = zeros(1,nq);
-% demand_hightfp = revenue_hightfp;
-% whichs = zeros(1,nx);
-% for i_x = 1:nx
-%     whichs(i_x) = sub2ind([nz nx 2],nz,i_x,ssigmaxsim(t));
-% end
-% for i_q = 1:nq
-%     tot_profit_grid(:,:,i_q) = (q_grid(i_q)-psi)*dist_k(:,:,t).*((0.02+ddelta)*repmat(fine_grid,1,nx)).*(active_fine(:,whichs,i_K,i_q));
-%     % tot_revenue_grid(tot_revenue_grid<0) = 0;
-%     demand_grid = dist_k(:,:,t).*((0.02+ddelta)*repmat(fine_grid,1,nx)).*(active_fine(:,whichs,i_K,i_q));
-%     revenue_hightfp(i_q) = sum(vec(tot_profit_grid(:,:,i_q)));
-%     demand_hightfp(i_q) = sum(demand_grid(:));
-% end
-%
 
 figure
 mesh(X,fine_grid,tot_profit_grid(:,:,1))

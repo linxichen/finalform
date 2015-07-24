@@ -12,3 +12,11 @@ GIRF.m~
 nested_obj.m
 
 try_parfor.m
+
+*.swp
+
+log.txt
+
+GIRF_unc.eps
+
+*.m~
