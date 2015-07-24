@@ -22,14 +22,14 @@ deep_para_quarterly;
 diary('log.txt');
 
 %% Accuracy control
-nk = 120; % number of grid points on capital stock
-nfine = 120; % number of grid points for policy functions and simulation
+nk = 100; % number of grid points on capital stock
+nfine = 100; % number of grid points for policy functions and simulation
 nx = 7; % number of grid points on idiosyncractic prod.
 nz = 7; % number of grid points on aggregate productivity
 ns = nx*nz*2; % total dimension of exo state, (idio, agg, ssigmax)
 nK = 15; % agg capital state
-nq = 25; % number of price points inv producer can set
-nmarkup = 25;
+nq = 15; % number of price points inv producer can set
+nmarkup = 15;
 m = 2.5; % support is m s.d. away from mean
 tol = 1e-3; % when to stop VFI and KS
 outer_tol = 1e-3;
