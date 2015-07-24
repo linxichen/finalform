@@ -15,6 +15,7 @@
 %      k = (1-delta)k+I-eta*(k*(I/K)^2) (Bloom 2009, p13)
 
 % 07/21 eliminated interpolation
+% 07/23 major overhual of simulation part
 
 %% Housekeeping
 clear; close all; clc;
@@ -35,8 +36,10 @@ tol = 1e-3; % when to stop VFI and KS
 outer_tol = 1e-3;
 maxiter = 100;
 damp = 0.5; % help with outer convergence
+T = 3000; % How long to simulate
+burnin = ceil(0.1*T); % how many periods to discard to get rid of dependence on initial state
 
-%% Grids
+%% Grids and stuff derived immediately from parameters
 [Z,PZ] = tauchen(nz,0,rrhoz,ssigmaz,m); Z = exp(Z); % agg TFP
 ssigmax = [ssigmax_low,ssigmax_high];
 [X,PX_high] = tauchen(nx,0,rrhox,ssigmax_high,m);
@@ -56,6 +59,8 @@ for i = 1:ns
         P(i,j) = PZ(i_z,j_z)*Pssigmax(i_ssigmax,j_ssigmax)*( (j_ssigmax==low)*PX_low(i_x,j_x)+ (j_ssigmax==high)*PX_high(i_x,j_x) );
     end
 end
+ssigmax_cdf = cumsum(Pssigmax,2);
+z_cdf = cumsum(PZ,2);
 
 %=========================================================================%
 % inv price grid. Since MC is 1, the price must be larger than 1
@@ -164,39 +169,39 @@ koptind = zeros(nk,ns,nK,nq);
 kopt_active_fine = zeros(nfine,ns,nK,nq);
 active = zeros(nk,ns,nK,nq);
 
-% Prepare for Simulation stuff
-T = 3000; % How long to simulate
-burnin = ceil(0.1*T); % how many periods to discard to get rid of dependence on initial state
-kss = mean(k_grid);
-Ksim = kss*ones(1,T);
-qsim = mean(markup_grid)*ones(1,T);
-revenue = zeros(nq,1); % revenue of inv producer
-demand = zeros(nq,T);
-tthetasim = zeros(1,T); % tightness ratio under optimal q
-dist_k = zeros(nfine,nx,T); % !! Should change this to Pareto
-dist_k(ceil(nfine/2),:,:) = ones(nx,T)/nx;
+%% Packing parameters
+package.K_grid = K_grid;
+package.fine_grid = fine_grid;
+package.noinvest_ind_fine = noinvest_ind_fine;
+package.ssigmax_grid = ssigmax ; % careful here name difference
+package.markup_grid = markup_grid;
+package.z_grid = Z ;
+package.q_grid = q_grid ;
+package.pphi_c = pphi_C ;
+package.pphi_K = pphi_K ;
+package.pphi_q = pphi_q ;
+package.pphi_ttheta = pphi_ttheta ;
+package.pphi_tthetaq = pphi_tthetaq ;
+package.PX_low = PX_low ;
+package.PX_high = PX_high ;
+package.X = X;
+package.nz = nz ;
+package.nx = nx ;
+package.ssigmax_cdf = ssigmax_cdf;
+package.z_cdf = z_cdf;
 
-% New Discrete Simulation? simulate the path of z and ssigmax
+% New Discrete Simulation? simulate the innovation terms
 x_cdf_low = cumsum(PX_low,2);
 x_cdf_high = cumsum(PX_high,2);
 rng('default');
 rng(2015);
-markov_shock = rand(1,T);
-ssigmaxsim = ones(1,T);
-ssigmax_cdf = cumsum(Pssigmax,2);
-for t = 1:T-1
-    ssigmaxsim(t+1) = find(ssigmax_cdf(ssigmaxsim(t),:) >= markov_shock(t),1,'first');
-end
-zindsim = ceil(nz/2)*ones(1,T);
-zsim = ones(1,T);
-z_cdf = cumsum(PZ,2);
-z_index_shock = rand(1,T);
-for t = 1:T-1
-    zindsim(t+1) = find(z_cdf(zindsim(t),:) >= z_index_shock(t),1,'first');
-    zsim(t+1) = Z(zindsim(t+1));
-end
-
-Csim = zeros(1,T);
+innov.rand_z = rand(1,T);
+innov.rand_unc = rand(1,T);
+startpoints.K = mean(K_grid);
+startpoints.ssigmaxind = low;
+startpoints.zind = ceil(nz/2);
+startpoints.dist_k = zeros(nfine,nx);
+startpoints.dist_k(ceil(nfine/2),:) = ones(1,nx);
 
 tic
 %% Main Body of KS iter
@@ -271,7 +276,6 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
 			disp(disp_text);
 		end
 	end
-	save('valuefunction.mat','V_old','W_old','U_old');
 	%============ VFI Ends================================================%
 
 	active = W_new > repmat(U_new,1,1,1,nq);
@@ -298,116 +302,17 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
 	kopt_fine = (1-ddelta)*repmat(fine_grid,1,ns,nK,nq).*(1-active_fine) + active_fine.*kopt_active_fine;
 	plot(fine_grid,kopt_fine(:,sub2ind([nx nz 2],ceil(nx/2),ceil(nz/2),2),ceil(nK/2),1)-(1-ddelta)*fine_grid)
 
-
 	%% Given individual policies, simulate a large panel to update aggregate law of motion
-	% Zero out after each outer iteration.
-	dist_k(:,:,2:T) = zeros(nfine,nx,T-1);
-	for t = 1:T
-		% Find aggregate stuff today
-		Ksim(t) = sum(vec(dist_k(:,:,t).*repmat(fine_grid,1,nx)));
-		[~,i_K] = min(abs(Ksim(t)-K_grid));
-		% Given uncertainty and agg TFP, find the agg exo state index of each indiviual
-		% prod. level. He uses this to forecast expected value function
-		whichs = zeros(1,nx);
-		for i_x = 1:nx
-			whichs(i_x) = sub2ind([nx nz 2],i_x,zindsim(t),ssigmaxsim(t));
-		end
-
-		% Find transition matrix according to today's state
-		if ssigmaxsim(t) == low
-			whichprob = PX_low;
-		elseif ssigmaxsim(t) == high
-			whichprob = PX_high;
-		end
-
-		% Find consumption and wage today
-		log_aggstate = [1; log(Ksim(t)); log(ssigmax(ssigmaxsim(t))); log(zsim(t))];
-		C = exp(pphi_C*log_aggstate);
-		w = ppsi_n*C;
-
-		% According to policy functions, find the optimal q
-		for i_markup = 1:nmarkup
-			[~,i_q] = min(abs(q_grid-markup_grid(i_markup)*w));
-			ttheta_temp = exp(pphi_ttheta*log_aggstate+pphi_tthetaq*log(q_grid(i_q)));% tightness ratio given q and states
-			mmu_temp = aalpha0*ttheta_temp^aalpha1;
-			tot_profit_grid = mmu_temp*(markup_grid(i_markup)*w-w)*dist_k(:,:,t).*(kopt_active_fine(:,whichs,i_K,i_q)-(1-ddelta)*repmat(fine_grid,1,nx)).*(active_fine(:,whichs,i_K,i_q));
-			demand_grid = mmu_temp*dist_k(:,:,t).*(kopt_active_fine(:,whichs,i_K,i_q)-(1-ddelta)*repmat(fine_grid,1,nx)).*(active_fine(:,whichs,i_K,i_q));
-			revenue(i_markup,t) = sum(tot_profit_grid(:));
-			demand(i_markup,t) = sum(demand_grid(:));
-		end
-		[~,i_markupmax] = max(revenue(:,t));
-		qmax = w*markup_grid(i_markupmax);
-		[~,i_qmax] = min(abs(q_grid-qmax));
-		qsim(t) = qmax;
-
-		% Evolution under the argmax q
-		if (t<=T-1)
-			output = 0;
-			ttheta_temp = exp(pphi_ttheta*log_aggstate+pphi_tthetaq*log(q_grid(i_qmax)));% tightness ratio given q and states
-			mmu_temp = aalpha0*ttheta_temp^aalpha1;
-			if mmu_temp > 1
-				warning('mmu > 1 encountered.');
-			end
-			i_z =find(Z==zsim(t));
-			for i_k = 1:nfine
-				for i_x = 1:nx
-					%======GE: Find output on each state==================%
-					L = (w*fine_grid(i_k).^(-aalpha)/zsim(t)/X(i_x)/v).^(1/(v-1));
-					output = output + dist_k(i_k,i_x,t)*(Z(i_z)*X(i_x)*fine_grid(i_k).^aalpha.*L.^v); % previously i_z is not correctly created from zsim(t). It stucked at VFI stage!!!
-					%======GE: Find output on each state==================%
-
-					i_s = sub2ind([nx nz 2],i_x,i_z,ssigmaxsim(t));
-					kplus = kopt_fine(i_k,i_s,i_K,i_qmax);
-
-					% Assign mass to tomorrow's distribution
-					for i_xplus = 1:nx
-						if active_fine(i_k,i_x) == 1
-							if (kplus>=fine_grid(1) && kplus<fine_grid(nfine))
-								lower_ind = find(fine_grid<=kplus,1,'last');
-								upper_ind = lower_ind + 1;
-								denom = fine_grid(upper_ind)-fine_grid(lower_ind);
-								dist_k(lower_ind,i_xplus,t+1) = dist_k(lower_ind,i_xplus,t+1) + mmu_temp*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t)*(fine_grid(upper_ind)-kplus)/denom;
-								dist_k(upper_ind,i_xplus,t+1) = dist_k(upper_ind,i_xplus,t+1) + mmu_temp*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t)*(kplus-fine_grid(lower_ind))/denom;
-								dist_k(noinvest_ind_fine(i_k),i_xplus,t+1) = dist_k(noinvest_ind_fine(i_k),i_xplus,t+1)+(1-mmu_temp)*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t);
-							elseif (kplus<fine_grid(1))
-								dist_k(1,i_xplus,t+1) = dist_k(1,i_xplus,t+1) + mmu_temp*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t);
-								dist_k(noinvest_ind_fine(i_k),i_xplus,t+1) = dist_k(noinvest_ind_fine(i_k),i_xplus,t+1)+(1-mmu_temp)*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t);
-							elseif (kplus>=fine_grid(nfine))
-								dist_k(nfine,i_xplus,t+1) = dist_k(nfine,i_xplus,t+1) + mmu_temp*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t);
-								dist_k(noinvest_ind_fine(i_k),i_xplus,t+1) = dist_k(noinvest_ind_fine(i_k),i_xplus,t+1)+(1-mmu_temp)*whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t);
-							end
-						else
-							dist_k(noinvest_ind_fine(i_k),i_xplus,t+1) = dist_k(noinvest_ind_fine(i_k),i_xplus,t+1)+whichprob(i_x,i_xplus)*dist_k(i_k,i_x,t);
-						end
-					end
-				end
-			end
-
-			% Check if distribution makes sense
-			if min(vec(dist_k(:,:,t+1))) < 0
-				warning('somewhere theres negative mass')
-			end
-			if sum(vec(dist_k(:,:,t+1))) ~= 1
-				sprintf('Mass sums up to %d',sum(vec(dist_k(:,:,t+1))));
-			end
-		end
-
-
-
-		% Eventually find implied consumption
-		Csim(t) = output;
-		% also find implied tightness ratio
-		measure_active = sum(sum(dist_k(:,:,t).*active_fine(:,whichs,i_K,i_qmax)));% how many firms choose to search
-		if measure_active == 0
-			tthetasim(t) = 999999;
-		else
-			tthetasim(t) = 1/measure_active;
-		end
-
-	end
+	[states_sim,controls_sim] = simulation(T,startpoints,innov,'allshock',kopt_fine,active_fine,package);
+	Ksim = states_sim.K;
+	ssigmaxsim = states_sim.ssigmax;
+	zsim = states_sim.z;
+	qsim = controls_sim.q;
+	tthetasim = controls_sim.ttheta;
+	Csim = controls_sim.C;
 
 	%% Regress to get coefficients of K law
-	XX = [ones(T-burnin-1,1) log(Ksim(burnin+1:T-1))' log(ssigmax(ssigmaxsim(burnin+1:T-1)))' log(zsim(burnin+1:T-1))'];
+	XX = [ones(T-burnin-1,1) log(Ksim(burnin+1:T-1))' log(ssigmaxsim(burnin+1:T-1))' log(zsim(burnin+1:T-1))'];
 	Y = log(Ksim(2+burnin:T)');
 	bbeta_K = (XX'*XX)\(XX'*Y);
 	e = Y-XX*bbeta_K;

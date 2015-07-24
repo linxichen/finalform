@@ -18,10 +18,10 @@ K_grid                   = package.K_grid;
 fine_grid                = package.fine_grid;
 noinvest_ind_fine        = package.noinvest_ind_fine;
 ssigmax_grid             = package.ssigmax_grid; % careful here name difference
+markup_grid              = package.markup_grid; % careful here name difference
 z_grid                   = package.z_grid;
 q_grid                   = package.q_grid;
 pphi_C                   = package.pphi_c;
-pphi_q                   = package.pphi_q;
 pphi_ttheta              = package.pphi_ttheta;
 pphi_tthetaq             = package.pphi_tthetaq;
 PX_low                   = package.PX_low;
@@ -41,6 +41,7 @@ high = 2;
 
 %% Preallocation state and control simulation arrays
 nfine = length(fine_grid);
+nmarkup = length(markup_grid);
 K_sim                    = zeros(1,T);
 dist_k_sim               = zeros(nfine,nx,T);
 zind_sim                 = zeros(1,T);
@@ -50,6 +51,8 @@ C_sim                    = zeros(1,T);
 w_sim                    = zeros(1,T);
 q_sim                    = zeros(1,T);
 ttheta_sim               = zeros(1,T);
+revenue_sim              = zeros(nmarkup,T);
+demand_sim               = zeros(nmarkup,T);
 
 %% Assign Starting states
 K_sim(1) = startpoints.K;
@@ -83,9 +86,27 @@ for t = 1:T
 	C = exp(pphi_C*log_aggstate);
 	w = ppsi_n*C;
 
-	% Acquire q from rule
-	qmax = exp(pphi_q*log_aggstate);
+	% According to policy functions, find the optimal q
+	for i_markup = 1:nmarkup
+		[~,i_q] = min(abs(q_grid-markup_grid(i_markup)*w));
+		ttheta_temp = exp(pphi_ttheta*log_aggstate+pphi_tthetaq*log(q_grid(i_q)));% tightness ratio given q and states
+		mmu_temp = aalpha0*ttheta_temp^aalpha1;
+		if (mmu_temp>1)
+			warning('mmu > 1 encountered.')
+		end
+		tot_profit_grid = mmu_temp*(markup_grid(i_markup)*w-w)*dist_k_sim(:,:,t).*(kopt_fine(:,whichs,i_K,i_q)-(1-ddelta)*repmat(fine_grid,1,nx)).*(active_fine(:,whichs,i_K,i_q));
+		demand_grid = mmu_temp*dist_k_sim(:,:,t).*(kopt_fine(:,whichs,i_K,i_q)-(1-ddelta)*repmat(fine_grid,1,nx)).*(active_fine(:,whichs,i_K,i_q));
+		revenue_sim(i_markup,t) = sum(tot_profit_grid(:));
+		demand_sim(i_markup,t) = sum(demand_grid(:));
+	end
+	[~,i_markupmax] = max(revenue_sim(:,t));
+	qmax = w*markup_grid(i_markupmax);
 	[~,i_qmax] = min(abs(q_grid-qmax));
+	q_sim(t) = qmax;
+
+	% Acquire q from rule
+	% qmax = exp(pphi_q*log_aggstate);
+	% [~,i_qmax] = min(abs(q_grid-qmax));
 
 	% Evolution under the argmax q
 	if (t<=T-1)
@@ -159,25 +180,25 @@ for t = 1:T
 
 	if t == 1 % apply irf shock only in the first period (t==2)
 		if strcmp(whichshock,'tfp')
-			z_temp = exp(rrhoz*log(z_grid(zind_sim(t)))+ssigmaz);
-			[~,i_ztemp] = min(abs(z_grid-z_temp));
-			zind_sim(t+1) = i_ztemp;
-			ssigmaxind_sim(t+1) = find(ssigmax_cdf(ssigmaxind_sim(t),:) >= rand_unc(t),1,'first');
+			z_temp                      = exp(rrhoz*log(z_grid(zind_sim(t)))+ssigmaz*1);
+			[~,i_ztemp]                 = min(abs(z_grid-z_temp));
+			zind_sim(t+1)               = i_ztemp;
+			ssigmaxind_sim(t+1)         = markov_draw(ssigmaxind_sim(t),ssigmax_cdf,rand_unc(t));
 		elseif strcmp(whichshock,'unc_high')
-			ssigmaxind_sim(t+1) = high;
-			zind_sim(t+1) = find(z_cdf(zind_sim(t),:) >= rand_z(t),1,'first');
+			ssigmaxind_sim(t+1)         = high;
+			zind_sim(t+1)               = markov_draw(zind_sim(t)      ,z_cdf      ,rand_z(t));
 		elseif strcmp(whichshock,'unc_low')
-			ssigmaxind_sim(t+1) = low;
-			zind_sim(t+1) = find(z_cdf(zind_sim(t),:) >= rand_z(t),1,'first');
+			ssigmaxind_sim(t+1)         = low;
+			zind_sim(t+1)               = markov_draw(zind_sim(t)      ,z_cdf      ,rand_z(t));
 		else
 			% Draw state tomorrow given innovations
-			ssigmaxind_sim(t+1) = find(ssigmax_cdf(ssigmaxind_sim(t),:) >= rand_unc(t),1,'first');
-			zind_sim(t+1) = find(z_cdf(zind_sim(t),:) >= rand_z(t),1,'first');
+			ssigmaxind_sim(t+1)         = markov_draw(ssigmaxind_sim(t),ssigmax_cdf,rand_unc(t));
+			zind_sim(t+1)               = markov_draw(zind_sim(t)      ,z_cdf      ,rand_z(t));
 		end
 	else
 		% Draw state tomorrow given innovations
-		ssigmaxind_sim(t+1) = find(ssigmax_cdf(ssigmaxind_sim(t),:) >= rand_unc(t),1,'first');
-		zind_sim(t+1) = find(z_cdf(zind_sim(t),:) >= rand_z(t),1,'first');
+		ssigmaxind_sim(t+1)             = markov_draw(ssigmaxind_sim(t),ssigmax_cdf,rand_unc(t));
+		zind_sim(t+1)                   = markov_draw(zind_sim(t)      ,z_cdf      ,rand_z(t));
 	end
 end
 
@@ -185,7 +206,7 @@ end
 states_sim.K             = K_sim;
 states_sim.dist_k        = dist_k_sim;
 states_sim.z             = z_grid(zind_sim)';
-states_sim.ssigmaxind    = ssigmax_grid(ssigmaxind_sim);
+states_sim.ssigmax       = ssigmax_grid(ssigmaxind_sim);
 
 controls_sim.C           = C_sim;
 controls_sim.w           = w_sim;
@@ -193,4 +214,6 @@ controls_sim.q           = q_sim;
 controls_sim.ttheta      = ttheta_sim;
 controls_sim.inv         = [K_sim(2:T)-(1-ddelta)*K_sim(1:T-1),0];
 controls_sim.GDP         = controls_sim.inv.*q_sim + C_sim;
+controls_sim.revenue     = revenue_sim;
+controls_sim.demand      = demand_sim;
 end

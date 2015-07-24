@@ -18,11 +18,13 @@ for i_world = 1:n_worlds
 	innov{i_world}.rand_z = rand(1,T);
 	innov{i_world}.rand_unc = rand(1,T);
 end
+
 %% Packing parameters
 package.K_grid = K_grid;
 package.fine_grid = fine_grid;
 package.noinvest_ind_fine = noinvest_ind_fine;
 package.ssigmax_grid = ssigmax ; % careful here name difference
+package.markup_grid = markup_grid;
 package.z_grid = Z ;
 package.q_grid = q_grid ;
 package.pphi_c = pphi_C ;
@@ -51,19 +53,19 @@ end
 save GIRF.mat
 
 %% Plotting for uncertainty shock
-q_panel_unc_high      = zeros(n_worlds,irfperiod);                                                                           
-q_panel_unc_low       = zeros(n_worlds,irfperiod);                                                                           
-C_panel_unc_high      = zeros(n_worlds,irfperiod);                                                                           
-C_panel_unc_low       = zeros(n_worlds,irfperiod);                                                                           
-w_panel_unc_high      = zeros(n_worlds,irfperiod);                                                                           
-w_panel_unc_low       = zeros(n_worlds,irfperiod);                                                                           
-ttheta_panel_unc_high = zeros(n_worlds,irfperiod);                                                                                
-ttheta_panel_unc_low  = zeros(n_worlds,irfperiod);                                                                                
-inv_panel_unc_high    = zeros(n_worlds,irfperiod);                                                                             
-inv_panel_unc_low     = zeros(n_worlds,irfperiod);                                                                             
-GDP_panel_unc_high    = zeros(n_worlds,irfperiod);                                                                             
-GDP_panel_unc_low     = zeros(n_worlds,irfperiod);                                                                             
-for i_world = 1:n_worlds
+q_panel_unc_high      = zeros(n_worlds,irfperiod);
+q_panel_unc_low       = zeros(n_worlds,irfperiod);
+C_panel_unc_high      = zeros(n_worlds,irfperiod);
+C_panel_unc_low       = zeros(n_worlds,irfperiod);
+w_panel_unc_high      = zeros(n_worlds,irfperiod);
+w_panel_unc_low       = zeros(n_worlds,irfperiod);
+ttheta_panel_unc_high = zeros(n_worlds,irfperiod);
+ttheta_panel_unc_low  = zeros(n_worlds,irfperiod);
+inv_panel_unc_high    = zeros(n_worlds,irfperiod);
+inv_panel_unc_low     = zeros(n_worlds,irfperiod);
+GDP_panel_unc_high    = zeros(n_worlds,irfperiod);
+GDP_panel_unc_low     = zeros(n_worlds,irfperiod);
+parfor i_world = 1:n_worlds
 	q_panel_unc_high(i_world,:) = controls_unc_high{i_world}.q;
 	q_panel_unc_low(i_world,:)  = controls_unc_low{i_world}.q ;
 	C_panel_unc_high(i_world,:) = controls_unc_high{i_world}.C;
