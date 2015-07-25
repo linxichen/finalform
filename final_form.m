@@ -75,7 +75,7 @@ markup_grid = linspace(markupmin,markupmax,nmarkup);
 q_grid = linspace(0.4,1.8,nq);
 % Capital grid
 min_k = 1;
-max_k = 10;
+max_k = 3;
 k_grid = zeros(nk,1);
 for i_k = 1:nk
     k_grid(i_k) = max_k*(1-ddelta)^(nk-i_k);
@@ -301,7 +301,7 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
 	kopt_active_fine = kopt_active;
 	active_fine = W_new_fine > repmat(U_new_fine,1,1,1,nq);
 	kopt_fine = (1-ddelta)*repmat(fine_grid,1,ns,nK,nq).*(1-active_fine) + active_fine.*kopt_active_fine;
-	plot(fine_grid,kopt_fine(:,sub2ind([nx nz 2],ceil(nx/2),ceil(nz/2),2),ceil(nK/2),1)-(1-ddelta)*fine_grid)
+	plot(fine_grid,kopt_fine(:,sub2ind([nx nz 2],ceil(nx/2),ceil(nz/2),2),ceil(nK/2),ceil(nq/2))-(1-ddelta)*fine_grid)
 
 	%% Given individual policies, simulate a large panel to update aggregate law of motion
 	[states_sim,controls_sim] = simulation(T,startpoints,innov,'allshock',kopt_fine,active_fine,package);
