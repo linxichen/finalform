@@ -28,8 +28,8 @@ nfine = nk; % number of grid points for policy functions and simulation
 nx = 7; % number of grid points on idiosyncractic prod.
 nz = 7; % number of grid points on aggregate productivity
 ns = nx*nz*2; % total dimension of exo state, (idio, agg, ssigmax_grid)
-nK = 15; % agg capital state
-nq = 15; % number of price points inv producer can set
+nK = 25; % agg capital state
+nq = 25; % number of price points inv producer can set
 nmarkup = 15;
 m = 2.5; % support is m s.d. away from mean
 tol = 1e-2; % when to stop VFI and KS
@@ -70,12 +70,12 @@ z_cdf = cumsum(PZ,2);
 % q = 1.05.
 %=========================================================================%
 markupmin = 1.00;
-markupmax = 1.2;
+markupmax = 1.3;
 markup_grid = linspace(markupmin,markupmax,nmarkup);
-q_grid = linspace(0.4,1.8,nq);
+q_grid = linspace(0.4,1.9,nq);
 % Capital grid
 min_k = 1;
-max_k = 3;
+max_k = 7;
 k_grid = zeros(nk,1);
 for i_k = 1:nk
     k_grid(i_k) = max_k*(1-ddelta)^(nk-i_k);
@@ -170,26 +170,6 @@ koptind = zeros(nk,ns,nK,nq);
 kopt_active_fine = zeros(nfine,ns,nK,nq);
 active = zeros(nk,ns,nK,nq);
 
-%% Packing parameters
-package.K_grid = K_grid;
-package.fine_grid = fine_grid;
-package.noinvest_ind_fine = noinvest_ind_fine;
-package.ssigmax_grid = ssigmax_grid ; % careful here name difference
-package.markup_grid = markup_grid;
-package.z_grid = z_grid ;
-package.q_grid = q_grid ;
-package.pphi_c = pphi_C ;
-package.pphi_K = pphi_K ;
-package.pphi_q = pphi_q ;
-package.pphi_ttheta = pphi_ttheta ;
-package.pphi_tthetaq = pphi_tthetaq ;
-package.PX_low = PX_low ;
-package.PX_high = PX_high ;
-package.X = X;
-package.nz = nz ;
-package.nx = nx ;
-package.ssigmax_cdf = ssigmax_cdf;
-package.z_cdf = z_cdf;
 
 % New Discrete Simulation? simulate the innovation terms
 x_cdf_low = cumsum(PX_low,2);
@@ -210,6 +190,27 @@ outer_diff = 10;
 outer_iter = 0;
 
 while ((outer_diff > outer_tol) && (outer_iter < maxiter))
+	%% Packing parameters
+	package.K_grid = K_grid;
+	package.fine_grid = fine_grid;
+	package.noinvest_ind_fine = noinvest_ind_fine;
+	package.ssigmax_grid = ssigmax_grid ; % careful here name difference
+	package.markup_grid = markup_grid;
+	package.z_grid = z_grid ;
+	package.q_grid = q_grid ;
+	package.pphi_c = pphi_C ;
+	package.pphi_K = pphi_K ;
+	package.pphi_q = pphi_q ;
+	package.pphi_ttheta = pphi_ttheta ;
+	package.pphi_tthetaq = pphi_tthetaq ;
+	package.PX_low = PX_low ;
+	package.PX_high = PX_high ;
+	package.X = X;
+	package.nz = nz ;
+	package.nx = nx ;
+	package.ssigmax_cdf = ssigmax_cdf;
+	package.z_cdf = z_cdf;
+
 	%============ VFI Begins==============================================%
 	% Inner loop
 	err = 10;

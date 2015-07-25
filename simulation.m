@@ -207,6 +207,8 @@ states_sim.K             = K_sim;
 states_sim.dist_k        = dist_k_sim;
 states_sim.z             = z_grid(zind_sim)';
 states_sim.ssigmax       = ssigmax_grid(ssigmaxind_sim);
+states_sim.zind          = zind_sim;
+states_sim.ssigmaxind     = ssigmaxind_sim;
 
 controls_sim.C           = C_sim;
 controls_sim.w           = w_sim;

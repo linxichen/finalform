@@ -12,8 +12,8 @@ rng('default');
 rng(2015);
 for i_world = 1:n_worlds
 	startpoints{i_world}.K = Ksim(end-i_world+1);
-	startpoints{i_world}.ssigmaxind = ssigmaxsim(end-i_world+1);
-	startpoints{i_world}.zind = zindsim(end-i_world+1);
+	startpoints{i_world}.ssigmaxind = states_sim.ssigmaxind(end-i_world+1);
+	startpoints{i_world}.zind = states_sim.zind(end-i_world+1);
 	startpoints{i_world}.dist_k = dist_k(:,:,end-i_world+1);
 	innov{i_world}.rand_z = rand(1,T);
 	innov{i_world}.rand_unc = rand(1,T);
