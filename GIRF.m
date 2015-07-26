@@ -14,7 +14,7 @@ for i_world = 1:n_worlds
 	startpoints{i_world}.K = Ksim(end-i_world+1);
 	startpoints{i_world}.ssigmaxind = states_sim.ssigmaxind(end-i_world+1);
 	startpoints{i_world}.zind = states_sim.zind(end-i_world+1);
-	startpoints{i_world}.dist_k = dist_k(:,:,end-i_world+1);
+	startpoints{i_world}.dist_k = states_sim.dist_k(:,:,end-i_world+1);
 	innov{i_world}.rand_z = rand(1,T);
 	innov{i_world}.rand_unc = rand(1,T);
 end
@@ -23,9 +23,9 @@ end
 package.K_grid = K_grid;
 package.fine_grid = fine_grid;
 package.noinvest_ind_fine = noinvest_ind_fine;
-package.ssigmax_grid = ssigmax ; % careful here name difference
+package.ssigmax_grid = ssigmax_grid;
 package.markup_grid = markup_grid;
-package.z_grid = Z ;
+package.z_grid = z_grid ;
 package.q_grid = q_grid ;
 package.pphi_c = pphi_C ;
 package.pphi_K = pphi_K ;
