@@ -75,7 +75,7 @@ markup_grid = linspace(markupmin,markupmax,nmarkup);
 q_grid = linspace(0.4,1.9,nq);
 % Capital grid
 min_k = 1;
-max_k = 7;
+max_k = 1;
 k_grid = zeros(nk,1);
 for i_k = 1:nk
     k_grid(i_k) = max_k*(1-ddelta)^(nk-i_k);
