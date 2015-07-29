@@ -246,7 +246,7 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
 				% Not optimally! We need to find maximizing kplus
 				%=========================================================%
 				for i_q = 1:nq
-					eeta = 0.5;
+					eeta = 0.1;
 					convexadj = eeta*repmat(k_grid,1,nk).*(inv_mat./repmat(k_grid,1,nk)).^2;
 					ttheta = exp(pphi_ttheta*log_aggstate+pphi_tthetaq*log(q_grid(i_q))); % tightness for this q
 					% mmu = 1./(1+tttheta_old.^(-aalpha0)).^(1/aalpha0);

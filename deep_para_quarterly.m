@@ -3,7 +3,6 @@ bbeta = 0.99; % if you don't know beta... good luck
 ttau = 0.1; % search cost
 aalpha = 0.25; % y = a*k^aalpha*l^v
 v = 0.5; % labor share
-aalpha0 = 2; % search elasticity
 ddelta = .1/4;
 pphi = 0.000000; % price of disinvestment relative to investment
 MC = 1; % How many units of consumption goods is needed for 1 inv good
