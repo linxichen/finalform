@@ -211,6 +211,7 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
 	package.ssigmax_cdf = ssigmax_cdf;
 	package.z_cdf = z_cdf;
 
+	vfi_timer = tic;
 	%============ VFI Begins==============================================%
 	% Inner loop
 	err = 10;
@@ -279,6 +280,7 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
 		end
 	end
 	%============ VFI Ends================================================%
+	toc(vfi_timer)
 
 	active = W_new > repmat(U_new,1,1,1,nq);
 	koptind = repmat(noinvest_ind,1,ns,nK,nq).*(1-active) + active.*koptind_active;
@@ -377,7 +379,7 @@ while ((outer_diff > outer_tol) && (outer_iter < maxiter))
 	outer_iter = outer_iter + 1;
 	disp_text = sprintf('Rsq_K = %d, Rsq_q = %d,Rsq_C = %d,Rsq_ttheta = %d',Rsq_K,Rsq_q,Rsq_C,Rsq_ttheta);
 	disp(disp_text);
-	disp_text = sprintf('log(q) = %d + %d * log(K) + %d * log(ssigmax)+%d * log(z)',pphi_q);
+	disp_text = sprintf('log(qplus!!!) = %d + %d * log(K) + %d * log(ssigmax)+%d * log(z)',pphi_q);
 	disp(disp_text);
 	disp_text = sprintf('log(Kplus) = %d + %d * log(K) + %d * log(ssigmax)+%d * log(z)',pphi_K);
 	disp(disp_text);
